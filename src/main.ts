@@ -367,9 +367,20 @@ function startFrameCapture() {
 }
 
 async function captureFrames(): Promise<ImageBitmap[]> {
-  if (bitmapBuffer.length > 0) {
-    // Return copies so we don't close them prematurely
-    return Promise.all(bitmapBuffer.map(b => createImageBitmap(b)))
+  const snapshots = [...bitmapBuffer]
+  if (snapshots.length > 0) {
+    const bitmaps = await Promise.all(snapshots.map(async (b) => {
+      try {
+        // Double check if bitmap is still valid before copying
+        if (b.width > 0 && b.height > 0) {
+          return await createImageBitmap(b)
+        }
+        return null
+      } catch (e) {
+        return null
+      }
+    }))
+    return bitmaps.filter((b): b is ImageBitmap => b !== null)
   }
   const bitmap = await captureSingleFrameBitmap()
   return bitmap ? [bitmap] : []

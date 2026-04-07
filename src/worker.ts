@@ -44,23 +44,38 @@ self.onmessage = async (e: MessageEvent) => {
       // Handle both ImageBitmap (new) and dataUrls (fallback)
       if (inputImages && inputImages.length > 0) {
         const processed = await Promise.all(inputImages.map(async (img: ImageBitmap) => {
-          if (!img || img.width <= 0 || img.height <= 0) {
-            img?.close?.();
-            return null;
-          }
           try {
-            const canvas = new OffscreenCanvas(img.width, img.height);
+            const w = img.width;
+            const h = img.height;
+            if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+              console.error('Worker: Invalid ImageBitmap dimensions:', { w, h });
+              img.close();
+              return null;
+            }
+
+            const canvas = new OffscreenCanvas(w, h);
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Worker failed to get 2d context');
+            
             ctx.drawImage(img, 0, 0);
-            const imageData = ctx.getImageData(0, 0, img.width, img.height);
-            img.close(); // Important: Close bitmap in worker as well
-            // @ts-ignore
-            return new RawImage(imageData.data, img.width, img.height, 4);
-          } catch (e) {
-            console.warn('Worker: skipping invalid frame', e);
+            const imageData = ctx.getImageData(0, 0, w, h);
+            img.close(); 
+
+            // Convert to Uint8Array as some RawImage versions prefer it over Uint8ClampedArray
+            const data = new Uint8Array(imageData.data.buffer);
+            
+            try {
+               // @ts-ignore
+               return new RawImage(data, w, h, 4);
+            } catch (rawError: any) {
+               console.error('Worker: RawImage constructor failed:', { message: rawError.message, w, h });
+               throw rawError;
+            }
+          } catch (e: any) {
+            console.error('Worker: Image processing failed:', e);
             img.close();
-            return null;
+            // Propagate the specific browser error so it can be seen in the UI
+            throw e;
           }
         }));
         images = processed.filter(img => img !== null);
