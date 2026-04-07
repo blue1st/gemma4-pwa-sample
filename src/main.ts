@@ -49,6 +49,7 @@ const intervalInput = document.getElementById('analysis-interval') as HTMLInputE
 const frameCountVal = document.getElementById('frame-count-val') as HTMLSpanElement
 const intervalVal = document.getElementById('interval-val') as HTMLSpanElement
 const languageSelector = document.getElementById('response-language') as HTMLSelectElement
+const lowResourceToggle = document.getElementById('low-resource-mode') as HTMLInputElement
 
 // Hidden canvases for processing
 const cropCanvas = document.createElement('canvas')
@@ -72,9 +73,26 @@ async function initCamera() {
   if (isCameraInitializing) return
   isCameraInitializing = true
   
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop())
+  // Pause any active analysis capture
+  if (captureIntervalId) {
+    clearInterval(captureIntervalId)
+    captureIntervalId = null
   }
+  
+  // Clear buffers to free up memory immediately
+  backgroundFrameBuffer = []
+  
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => {
+      track.stop()
+      console.log('Stream track stopped:', track.label)
+    })
+    currentStream = null
+  }
+
+  // Brief pause to allow browser to release hardware resources
+  await new Promise(r => setTimeout(r, 300))
+
   try {
     currentStream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -90,7 +108,18 @@ async function initCamera() {
         video.play()
         updateStatus('Camera Active')
         isCameraInitializing = false
+        
+        // Resume analysis capture after a stabilization delay
+        setTimeout(() => {
+          if (!isModelLoading && isInitialized) {
+            startFrameCapture()
+          }
+        }, 1000)
+        
         resolve()
+      }
+      video.onpause = () => {
+        console.log('Video paused during init')
       }
       video.onerror = () => {
         updateStatus('Camera Error')
@@ -243,7 +272,10 @@ function updateLoadingProgress(payload: any) {
 }
 
 // Capture frame(s)
-function captureSingleFrame(crop?: { x: number, y: number, w: number, h: number }): string {
+function captureSingleFrame(options?: { 
+  crop?: { x: number, y: number, w: number, h: number }, 
+  maxSize?: number 
+}): string {
   const context = cropCanvas.getContext('2d')
   if (!context) return ''
 
@@ -251,22 +283,44 @@ function captureSingleFrame(crop?: { x: number, y: number, w: number, h: number 
   const vHeight = video.videoHeight
   if (!vWidth || !vHeight) return ''
   
-  if (crop) {
-    cropCanvas.width = crop.w
-    cropCanvas.height = crop.h
-    context.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
-  } else {
-    cropCanvas.width = vWidth
-    cropCanvas.height = vHeight
-    context.drawImage(video, 0, 0, vWidth, vHeight)
+  let sourceX = 0, sourceY = 0, sourceW = vWidth, sourceH = vHeight
+  let targetW = vWidth, targetH = vHeight
+
+  if (options?.crop) {
+    sourceX = options.crop.x
+    sourceY = options.crop.y
+    sourceW = options.crop.w
+    sourceH = options.crop.h
+    targetW = sourceW
+    targetH = sourceH
   }
+
+  // Downscale if maxSize is provided (saves memory/bandwidth)
+  if (options?.maxSize) {
+    const ratio = Math.min(options.maxSize / targetW, options.maxSize / targetH)
+    if (ratio < 1) {
+      targetW = Math.round(targetW * ratio)
+      targetH = Math.round(targetH * ratio)
+    }
+  }
+  
+  cropCanvas.width = targetW
+  cropCanvas.height = targetH
+  
+  context.drawImage(
+    video, 
+    sourceX, sourceY, sourceW, sourceH, 
+    0, 0, targetW, targetH
+  )
   
   return cropCanvas.toDataURL('image/jpeg', 0.8)
 }
 
 function updateFrameBuffer() {
-  if (video.readyState < 2) return
-  const frame = captureSingleFrame()
+  if (video.readyState < 2 || isCameraInitializing || isModelLoading) return
+  // Use a smaller maxSize for background analysis (640 or 448 for low resource)
+  const maxSize = lowResourceToggle?.checked ? 448 : 640
+  const frame = captureSingleFrame({ maxSize })
   if (frame) {
     backgroundFrameBuffer.push(frame)
     if (backgroundFrameBuffer.length > videoFrameCount) {
@@ -368,7 +422,7 @@ async function getAudioData() {
 
 // Analysis Loop
 async function performBackgroundAnalysis() {
-  if (!worker || isAnalyzing || isModelLoading) return
+  if (!worker || isAnalyzing || isModelLoading || isCameraInitializing) return
   isAnalyzing = true
   
   const frames = captureFrames()
@@ -397,9 +451,18 @@ function startBackgroundAnalysis() {
 }
 
 // UI Interactions
-switchCameraBtn.onclick = () => {
+switchCameraBtn.onclick = async () => {
+  if (isCameraInitializing) return
+  
+  const originalHtml = switchCameraBtn.innerHTML
+  switchCameraBtn.disabled = true
+  switchCameraBtn.innerHTML = `<span class="switching-spinner"></span>`
+  
   facingMode = facingMode === 'user' ? 'environment' : 'user'
-  initCamera()
+  await initCamera()
+  
+  switchCameraBtn.disabled = false
+  switchCameraBtn.innerHTML = originalHtml
 }
 
 toggleAudioBtn.onclick = () => {
@@ -450,6 +513,27 @@ languageSelector.onchange = () => {
   }
 }
 
+lowResourceToggle.onchange = () => {
+  if (lowResourceToggle.checked) {
+    videoFrameCount = 2
+    BACKGROUND_ANALYSIS_INTERVAL = 15000
+    console.log('Resource Saver Enabled')
+  } else {
+    autoAdjustPerformance() // Reset to detected defaults
+  }
+  
+  // Update UI inputs to match
+  frameCountInput.value = videoFrameCount.toString()
+  frameCountVal.textContent = videoFrameCount.toString()
+  intervalInput.value = BACKGROUND_ANALYSIS_INTERVAL.toString()
+  intervalVal.textContent = BACKGROUND_ANALYSIS_INTERVAL.toString()
+  
+  // Restart analysis with new settings
+  if (backgroundAnalysisId) {
+    startBackgroundAnalysis()
+  }
+}
+
 function setLanguageFromBrowser() {
   const lang = navigator.language.toLowerCase()
   if (lang.startsWith('ja')) targetLanguage = 'Japanese'
@@ -468,11 +552,13 @@ function autoAdjustPerformance() {
 
   if (isMobile || cpuCores <= 4 || ram <= 4) {
     videoFrameCount = 4
-    BACKGROUND_ANALYSIS_INTERVAL = 8000
+    BACKGROUND_ANALYSIS_INTERVAL = 10000
+    if (lowResourceToggle) lowResourceToggle.checked = true
     console.log('Low performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   } else {
     videoFrameCount = 8
     BACKGROUND_ANALYSIS_INTERVAL = 5000
+    if (lowResourceToggle) lowResourceToggle.checked = false
     console.log('High performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   }
   
@@ -586,6 +672,7 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
       indicator.circle.style.strokeDashoffset = `${indicator.circumference * (1 - progress)}`
       
       context.drawImage(video, vCropX, vCropY, vCropW, vCropH, 0, 0, vCropW, vCropH)
+      // Tap analysis can use higher resolution or specific size
       frames.push(tapCanvas.toDataURL('image/jpeg', 0.8))
       
       await new Promise(r => setTimeout(r, interval))
