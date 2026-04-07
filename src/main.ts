@@ -677,6 +677,21 @@ function showBubble(text: string, x: number, y: number) {
 window.onload = async () => {
   if (isInitialized) return
   isInitialized = true
+
+  // Loop guard for mobile/pc stabilization
+  const now = Date.now()
+  const lastLoad = parseInt(sessionStorage.getItem('last_load_time') || '0')
+  const loadCount = parseInt(sessionStorage.getItem('load_count') || '0')
+  
+  if (now - lastLoad < 2000 && loadCount > 3) {
+    console.error('Reload loop detected. Stopping initialization.')
+    updateStatus('Error: Reload Loop')
+    descriptionText.textContent = 'Critical Error: The page is reloading too frequently. Please try clearing your cache or opening in a new tab.'
+    return
+  }
+  
+  sessionStorage.setItem('last_load_time', now.toString())
+  sessionStorage.setItem('load_count', (now - lastLoad < 5000 ? loadCount + 1 : 1).toString())
   
   autoAdjustPerformance()
   setLanguageFromBrowser()
@@ -685,16 +700,20 @@ window.onload = async () => {
   await initCamera()
   loadModel()
 
-  // Re-enable PWA registration with our combined Service Worker
-  // Removed 'immediate: true' to prevent automatic reloads that disrupt model initialization
-  const updateSW = registerSW({
-    onNeedRefresh() {
-      if (confirm('New AI engine update available. Reload now?')) {
-        updateSW()
+  // Only register Service Worker in production/secure environments, not on localhost to avoid HMR loops
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  if (!isLocalhost) {
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        if (confirm('New AI engine update available. Reload now?')) {
+          updateSW()
+        }
+      },
+      onOfflineReady() {
+        console.log('App is ready to work offline.')
       }
-    },
-    onOfflineReady() {
-      console.log('App is ready to work offline.')
-    }
-  })
+    })
+  } else {
+    console.log('Localhost detected: Skipping Service Worker registration.')
+  }
 }
