@@ -186,16 +186,18 @@ body, html {
   margin-top: auto;
   display: flex;
   justify-content: space-between;
+  align-items: center; /* Ensure they are vertically aligned */
   gap: 12px;
   pointer-events: auto;
 }
 
-#controls-panel > * {
-  flex: 1;
+#controls-panel > button {
+  flex: 0 0 54px; /* Fix buttons to square size */
 }
 
 #model-selector {
-  flex: 2;
+  flex: 1; /* Occupy remaining space */
+  min-width: 0; /* Allow it to shrink if needed */
 }
 
 .glass-btn {
@@ -204,6 +206,7 @@ body, html {
   border-radius: 18px;
   background: var(--panel-bg);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   color: #fff;
   display: flex;
@@ -211,6 +214,14 @@ body, html {
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0; /* Ensure no padding interferes with icon size */
+}
+
+.glass-btn svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: block; /* Prevent inline spacing issues */
 }
 
 .glass-btn:active {
