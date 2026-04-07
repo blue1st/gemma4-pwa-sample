@@ -382,8 +382,8 @@ let bitmapBuffer: ImageBitmap[] = []
 
 async function updateFrameBuffer() {
   if (video.readyState < 2 || isCameraInitializing || isModelLoading) return
-  // Use a smaller maxSize for background analysis (336 or 224 for extreme low resource)
-  const maxSize = lowResourceToggle?.checked ? 336 : 448
+  // Use a smaller maxSize for background analysis (224 for extreme low resource, 448 for normal)
+  const maxSize = lowResourceToggle?.checked ? 224 : 448
   const bitmap = await captureSingleFrameBitmap({ maxSize })
   if (bitmap) {
     bitmapBuffer.push(bitmap)
@@ -594,8 +594,8 @@ languageSelector.onchange = () => {
 lowResourceToggle.onchange = () => {
   if (lowResourceToggle.checked) {
     videoFrameCount = 1
-    BACKGROUND_ANALYSIS_INTERVAL = 20000
-    console.log('Resource Saver Enabled')
+    BACKGROUND_ANALYSIS_INTERVAL = 30000
+    console.log('Extreme Resource Saver Enabled')
   } else {
     autoAdjustPerformance() // Reset to detected defaults
   }
@@ -629,8 +629,8 @@ function autoAdjustPerformance() {
   const ram = navigator.deviceMemory || 8
 
   if (isMobile || cpuCores <= 4 || ram <= 4) {
-    videoFrameCount = 2
-    BACKGROUND_ANALYSIS_INTERVAL = 15000
+    videoFrameCount = 1
+    BACKGROUND_ANALYSIS_INTERVAL = 20000
     if (lowResourceToggle) lowResourceToggle.checked = true
     console.log('Low performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   } else {
