@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono&display=swap');
+
 :root {
   --bg-color: #0b0c10;
   --panel-bg: rgba(20, 22, 30, 0.75);
@@ -10,8 +12,6 @@
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono&display=swap');
 
 * {
   box-sizing: border-box;
@@ -100,6 +100,7 @@ body, html {
   align-items: center;
   gap: 10px;
 }
+
 
 .status-indicator {
   font-family: 'JetBrains Mono', monospace;
