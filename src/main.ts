@@ -643,7 +643,8 @@ async function performBackgroundAnalysis() {
       promptText: `Describe the visible entities (people, objects, environment) concisely. Skip any introductory phrases. Return only the description in ${targetLanguage}.`,
       images: frames,
       audioData: audio,
-      samplingRate
+      samplingRate,
+      lowResource: lowResourceToggle?.checked || false
     }
   }, frames) // Transfer ImageBitmaps
 }
@@ -760,7 +761,10 @@ lowResourceToggle.onchange = () => {
     BACKGROUND_ANALYSIS_INTERVAL = 30000
     console.log('Extreme Resource Saver Enabled')
   } else {
-    autoAdjustPerformance() // Reset to detected defaults
+    // If user explicitly unchecks, reset to high performance defaults
+    videoFrameCount = 4
+    BACKGROUND_ANALYSIS_INTERVAL = 15000
+    console.log('Resource Saver Disabled')
   }
   
   // Update UI inputs to match
@@ -791,8 +795,9 @@ function autoAdjustPerformance() {
   // @ts-ignore
   const ram = navigator.deviceMemory || 8
 
-  // Aggressive defaults for all mobile/tablet and low-spec devices
-  if (isMobile || cpuCores <= 4 || ram <= 8) {
+  // Aggressive defaults for mobile/tablet and low-spec devices
+  // Navigator.deviceMemory is often capped at 8, so use < 8 to avoid catching common PCs
+  if (isMobile || cpuCores < 4 || ram < 8) {
     videoFrameCount = 1
     BACKGROUND_ANALYSIS_INTERVAL = 25000
     if (lowResourceToggle) lowResourceToggle.checked = true
@@ -967,7 +972,8 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
       images: frames,
       audioData: await getAudioData(),
       samplingRate,
-      context: { type: 'tap', x: screenX, y: screenY }
+      context: { type: 'tap', x: screenX, y: screenY },
+      lowResource: lowResourceToggle?.checked || false
     }
   }, frames) // Transfer ImageBitmaps
 }

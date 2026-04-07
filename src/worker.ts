@@ -39,7 +39,7 @@ self.onmessage = async (e: MessageEvent) => {
       if (!processor || !model) {
         throw new Error('Model or processor not loaded')
       }
-      const { promptText, images: inputImages, dataUrls, audioData, samplingRate } = payload
+      const { promptText, images: inputImages, dataUrls, audioData, samplingRate, lowResource } = payload
       
       // Handle both ImageBitmap (new) and dataUrls (fallback)
       if (inputImages && inputImages.length > 0) {
@@ -49,7 +49,6 @@ self.onmessage = async (e: MessageEvent) => {
             const w = img.width;
             const h = img.height;
             if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
-              console.error('Worker: Invalid ImageBitmap dimensions:', { w, h });
               img.close();
               continue;
             }
@@ -62,14 +61,8 @@ self.onmessage = async (e: MessageEvent) => {
             const imageData = ctx.getImageData(0, 0, w, h);
             img.close(); 
 
-            const data = new Uint8Array(imageData.data.buffer);
-            try {
-               // @ts-ignore
-               processed.push(new RawImage(data, w, h, 4));
-            } catch (rawError: any) {
-               console.error('Worker: RawImage constructor failed:', { message: rawError.message, w, h });
-               throw rawError;
-            }
+            // @ts-ignore
+            processed.push(new RawImage(new Uint8Array(imageData.data.buffer), w, h, 4));
           } catch (e: any) {
             console.error('Worker: Image processing failed:', e);
             img.close();
@@ -82,29 +75,19 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       const content: Array<{ type: string; text?: string }> = []
-
       if (images.length > 0) {
         for (let i = 0; i < images.length; i++) {
           content.push({ type: 'image' })
         }
       }
-
       if (audioData) {
         content.push({ type: 'audio' })
       }
-
       content.push({ type: 'text', text: promptText })
 
-      const messages = [
-        {
-          role: 'user',
-          content
-        }
-      ]
+      const messages = [{ role: 'user', content }]
 
-      let prompt = (await (
-        processor as any
-      ).apply_chat_template(messages, {
+      let prompt = (await (processor as any).apply_chat_template(messages, {
         add_generation_prompt: true,
         tokenize: false
       })) as string
@@ -113,10 +96,8 @@ self.onmessage = async (e: MessageEvent) => {
       const audioTag = (processor as any).audio_token || '<audio>'
       const videoTag = '<video>'
 
-      const hasImageToken =
-        prompt.includes(imageTag) || prompt.includes('<boi>') || prompt.includes('[IMAGE]')
-      const hasAudioToken =
-        prompt.includes(audioTag) || prompt.includes('<boa>') || prompt.includes('[AUDIO]')
+      const hasImageToken = prompt.includes(imageTag) || prompt.includes('<boi>') || prompt.includes('[IMAGE]')
+      const hasAudioToken = prompt.includes(audioTag) || prompt.includes('<boa>') || prompt.includes('[AUDIO]')
       const hasVideoToken = prompt.includes(videoTag) || prompt.includes('[VIDEO]')
 
       if (images.length > 0 && !hasImageToken && !hasVideoToken) {
@@ -135,9 +116,7 @@ self.onmessage = async (e: MessageEvent) => {
       let inputs: any = null;
       let outputs: any = null;
       try {
-        inputs = await (
-          processor as any
-        )(prompt, images, audioData, {
+        inputs = await (processor as any)(prompt, images, audioData, {
           sampling_rate: samplingRate
         })
 
@@ -149,11 +128,12 @@ self.onmessage = async (e: MessageEvent) => {
           }
         })
 
-        outputs = (await (
-          model as any
-        ).generate({
+        // On low resource devices, further reduce generation tokens to save memory/compute
+        const maxTokens = lowResource ? 32 : 64;
+
+        outputs = (await (model as any).generate({
           ...inputs,
-          max_new_tokens: 64, // Further reduced for mobile stability
+          max_new_tokens: maxTokens,
           do_sample: false,
           streamer
         }))
@@ -165,18 +145,14 @@ self.onmessage = async (e: MessageEvent) => {
         )
         self.postMessage({ type: 'generated', payload: decoded[0], context: payload.context })
       } finally {
-        // Essential: Always cleanup tensors to prevent OOM/GPU crashes on subsequent runs
+        // Essential cleanup
         if (inputs) {
           Object.values(inputs).forEach((tensor: any) => {
-            if (tensor && typeof tensor.dispose === 'function') {
-              tensor.dispose();
-            }
+            if (tensor && typeof tensor.dispose === 'function') tensor.dispose();
           });
         }
         if (outputs && typeof outputs.dispose === 'function') {
-          if (typeof outputs.dispose === 'function') {
-            outputs.dispose();
-          }
+          outputs.dispose();
         }
       }
 
