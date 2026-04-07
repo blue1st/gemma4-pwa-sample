@@ -1,7 +1,9 @@
 import './style.css'
 import { registerSW } from 'virtual:pwa-register'
 
+
 // PWA Register (will be called in window.onload)
+
 
 // State management
 let facingMode: 'user' | 'environment' = 'environment'
@@ -683,8 +685,6 @@ window.onload = async () => {
   await initCamera()
   loadModel()
 
-  // Register PWA service worker with a slight delay to allow coi-serviceworker to finish resets
-  setTimeout(() => {
-    registerSW({ immediate: true })
-  }, 2000)
+  // Re-enable PWA registration with our combined Service Worker
+  registerSW({ immediate: true })
 }

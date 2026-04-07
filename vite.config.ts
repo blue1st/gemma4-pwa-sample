@@ -5,6 +5,9 @@ export default defineConfig({
   base: '/gemma4-pwa-sample/',
   plugins: [
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'logo.svg'],
       manifest: {
@@ -37,7 +40,7 @@ export default defineConfig({
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'credentialless'
+      'Cross-Origin-Embedder-Policy': 'require-corp'
     }
   }
 })
