@@ -19,6 +19,8 @@ let videoFrameCount = 4
 let BACKGROUND_ANALYSIS_INTERVAL = 15000;
 let targetLanguage = 'Japanese'; 
 
+let lastAnalysisTime = Date.now();
+
 let audioContext: AudioContext | null = null
 let audioBuffer: Float32Array | null = null
 let audioWriteIdx = 0
@@ -51,6 +53,11 @@ const frameCountVal = document.getElementById('frame-count-val') as HTMLSpanElem
 const intervalVal = document.getElementById('interval-val') as HTMLSpanElement
 const languageSelector = document.getElementById('response-language') as HTMLSelectElement
 const lowResourceToggle = document.getElementById('low-resource-mode') as HTMLInputElement
+
+const stateDot = document.getElementById('state-dot') as HTMLDivElement
+const stateLabel = document.getElementById('state-label') as HTMLSpanElement
+const intervalProgressContainer = document.getElementById('interval-progress-container') as HTMLDivElement
+const intervalProgressBar = document.getElementById('interval-progress-bar') as HTMLDivElement
 
 // Hidden canvases for processing
 const cropCanvas = document.createElement('canvas')
@@ -178,6 +185,67 @@ function updateStatus(text: string) {
        connectionStatus.style.boxShadow = 'none'
     }
   }
+}
+
+// Visual State Helper
+function updateAnalysisState(state: 'snapping' | 'analyzing' | 'waiting' | 'idle') {
+  if (!stateDot || !stateLabel) return
+  
+  stateDot.className = 'pulse-dot ' + (state === 'idle' ? '' : state)
+  
+  switch (state) {
+    case 'snapping':
+      stateLabel.textContent = 'Capturing...'
+      intervalProgressContainer.classList.add('hidden')
+      break
+    case 'analyzing':
+      stateLabel.textContent = 'Analyzing Scene...'
+      intervalProgressContainer.classList.add('hidden')
+      break
+    case 'waiting':
+      stateLabel.textContent = 'Waiting'
+      intervalProgressContainer.classList.remove('hidden')
+      break
+    case 'idle':
+    default:
+      stateLabel.textContent = 'Live Scene Analysis'
+      intervalProgressContainer.classList.add('hidden')
+      break
+  }
+}
+
+function updateIntervalUI() {
+  if (isAnalyzing || isModelLoading || !backgroundAnalysisId || isCameraInitializing) {
+    if (isCapturingTap) {
+      updateAnalysisState('snapping')
+      stateLabel.textContent = 'Focusing...'
+    } else if (isAnalyzing) {
+      updateAnalysisState('analyzing')
+    } else if (isCameraInitializing) {
+      updateAnalysisState('idle')
+      stateLabel.textContent = 'Starting Camera...'
+    } else if (isModelLoading) {
+      updateAnalysisState('idle')
+      stateLabel.textContent = 'Waking up AI...'
+    } else {
+      updateAnalysisState('idle')
+    }
+    requestAnimationFrame(updateIntervalUI)
+    return
+  }
+  
+  const now = Date.now()
+  const elapsed = now - lastAnalysisTime
+  const progress = Math.min(100, (elapsed / BACKGROUND_ANALYSIS_INTERVAL) * 100)
+  
+  if (progress < 100) {
+    intervalProgressBar.style.width = `${progress}%`
+    updateAnalysisState('waiting')
+  } else {
+    updateAnalysisState('snapping')
+  }
+  
+  requestAnimationFrame(updateIntervalUI)
 }
 
 // Worker Communication
@@ -545,14 +613,20 @@ async function performBackgroundAnalysis() {
   if (!worker || isAnalyzing || isModelLoading || isCameraInitializing) return
   isAnalyzing = true
   
+  updateAnalysisState('snapping')
+
   const frames = await captureFrames()
   if (frames.length === 0) {
     isAnalyzing = false
     return
   }
   
+  
   const audio = await getAudioData()
   
+  lastAnalysisTime = Date.now() // Reset timer for UI
+  updateAnalysisState('analyzing')
+
   worker.postMessage({
     type: 'generate',
     payload: {
@@ -566,8 +640,10 @@ async function performBackgroundAnalysis() {
 
 function startBackgroundAnalysis() {
   if (backgroundAnalysisId) clearInterval(backgroundAnalysisId)
+  lastAnalysisTime = Date.now()
   backgroundAnalysisId = window.setInterval(performBackgroundAnalysis, BACKGROUND_ANALYSIS_INTERVAL)
   startFrameCapture()
+  updateIntervalUI() // Start the UI loop if not already running (requestAnimationFrame handles double-start mostly)
 }
 
 // UI Interactions

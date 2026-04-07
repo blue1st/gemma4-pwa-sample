@@ -119,12 +119,58 @@ body, html {
   border-radius: 50%;
   box-shadow: 0 0 12px var(--accent-color);
   animation: pulse 2s infinite;
+  transition: all 0.3s ease;
+}
+
+.pulse-dot.snapping {
+  background: #ffcc00;
+  box-shadow: 0 0 16px #ffcc00;
+  animation: fast-pulse 0.4s infinite;
+}
+
+.pulse-dot.analyzing {
+  background: #64ffda;
+  box-shadow: 0 0 16px #64ffda;
+  animation: thinking 1.4s infinite;
+  border-radius: 2px; /* Just a little different */
+}
+
+.pulse-dot.waiting {
+  background: var(--text-dim);
+  box-shadow: none;
+  animation: none;
+  opacity: 0.5;
+}
+
+@keyframes fast-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
 }
 
 @keyframes pulse {
   0% { opacity: 0.5; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 16px var(--accent-color); }
   100% { opacity: 0.5; transform: scale(1); }
+}
+
+/* Mini Progress Bar (for Interval) */
+.mini-progress-bg {
+  width: 44px; /* Slightly smaller */
+  height: 4px;
+  background: rgba(255,255,255,0.08); /* Better contrast */
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.mini-progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  width: 0%;
+  transition: width 0.1s linear; /* Smooth progress */
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 #description-text {

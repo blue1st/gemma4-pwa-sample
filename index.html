@@ -33,8 +33,11 @@
         <div id="main-analysis" class="glass-panel">
           <div class="analysis-header">
             <div class="analysis-header-left">
-              <div class="pulse-dot"></div>
-              <span>Live Scene Analysis</span>
+              <div id="state-dot" class="pulse-dot"></div>
+              <span id="state-label">Live Scene Analysis</span>
+              <div id="interval-progress-container" class="mini-progress-bg hidden">
+                <div id="interval-progress-bar" class="mini-progress-fill"></div>
+              </div>
             </div>
             <div id="connection-status" class="status-indicator">READY</div>
             <button id="copy-main-btn" class="icon-sub-btn" title="Copy Result">
