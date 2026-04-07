@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/pwa-gemma-sight/',
+  base: '/gemma4-pwa-sample/',
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
