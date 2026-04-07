@@ -11,6 +11,7 @@ let currentStream: MediaStream | null = null
 let worker: Worker | null = null
 let isModelLoading = false
 let isAnalyzing = false
+let isSnapping = false
 let isCameraInitializing = false
 let includeAudio = false
 let backgroundAnalysisId: number | null = null
@@ -19,7 +20,7 @@ let videoFrameCount = 4
 let BACKGROUND_ANALYSIS_INTERVAL = 15000;
 let targetLanguage = 'Japanese'; 
 
-let lastAnalysisTime = Date.now();
+let lastAnalysisTime = 0;
 
 let audioContext: AudioContext | null = null
 let audioBuffer: Float32Array | null = null
@@ -227,6 +228,8 @@ function updateIntervalUI() {
     if (isCapturingTap) {
       updateAnalysisState('snapping')
       stateLabel.textContent = 'Focusing...'
+    } else if (isSnapping) {
+      updateAnalysisState('snapping')
     } else if (isAnalyzing) {
       updateAnalysisState('analyzing')
     } else if (isCameraInitializing) {
@@ -622,10 +625,13 @@ async function getAudioData() {
 async function performBackgroundAnalysis() {
   if (!worker || isAnalyzing || isModelLoading || isCameraInitializing) return
   isAnalyzing = true
+  isSnapping = true
   
   updateAnalysisState('snapping')
 
   const frames = await captureFrames()
+  isSnapping = false
+
   if (frames.length === 0) {
     isAnalyzing = false
     return
@@ -651,7 +657,10 @@ async function performBackgroundAnalysis() {
 
 function startBackgroundAnalysis() {
   if (backgroundAnalysisId) clearInterval(backgroundAnalysisId)
-  lastAnalysisTime = Date.now()
+  
+  // Trigger initial analysis immediately instead of waiting for the first interval
+  performBackgroundAnalysis()
+  
   backgroundAnalysisId = window.setInterval(performBackgroundAnalysis, BACKGROUND_ANALYSIS_INTERVAL)
   startFrameCapture()
   updateIntervalUI() 
