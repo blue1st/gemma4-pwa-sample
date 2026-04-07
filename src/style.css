@@ -1,0 +1,421 @@
+:root {
+  --bg-color: #0b0c10;
+  --panel-bg: rgba(20, 22, 30, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --accent-color: #64ffda;
+  --accent-glow: rgba(100, 255, 218, 0.3);
+  --text-main: #e0e0e0;
+  --text-dim: #949494;
+  --bubble-bg: rgba(25, 28, 38, 0.9);
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=JetBrains+Mono&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  font-family: 'Outfit', sans-serif;
+  color: var(--text-main);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Camera Layer */
+#camera-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: black;
+}
+
+#main-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Immersive feel */
+}
+
+#tap-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+/* UI Overlay */
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12px + var(--safe-top)) 12px calc(16px + var(--safe-bottom)) 12px;
+}
+
+/* Description Panel */
+#main-analysis {
+  margin-top: 0;
+  padding: 16px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  pointer-events: auto;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+}
+
+.analysis-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.analysis-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-indicator {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--accent-color);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 16px var(--accent-color); }
+  100% { opacity: 0.5; transform: scale(1); }
+}
+
+#description-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* Controls Panel */
+#controls-panel {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+#controls-panel > * {
+  flex: 1;
+}
+
+#model-selector {
+  flex: 2;
+}
+
+.glass-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-btn:active {
+  transform: scale(0.92);
+  background: rgba(255,255,255,0.1);
+}
+
+#switch-camera-btn {
+  border-color: rgba(100, 255, 218, 0.4);
+}
+
+#toggle-audio-btn.active-audio {
+  border-color: #ff4d4d;
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.05);
+}
+
+.glass-select {
+  height: 54px;
+  border-radius: 18px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  color: #fff;
+  padding: 0 16px;
+  appearance: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Bubbles & Indicators */
+.result-bubble {
+  position: absolute;
+  background: var(--bubble-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 20px;
+  padding: 14px 20px;
+  max-width: 300px;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  z-index: 50;
+  opacity: 0;
+  transform-origin: center bottom;
+  animation: bubblePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation-delay: 0.2s;
+}
+
+.bubble-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.bubble-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+@keyframes bubblePop {
+  from { transform: scale(0.6) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* Progress System */
+#load-progress-container {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.progress-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.progress-bar-bg {
+  width: 260px;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent-color);
+  box-shadow: 0 0 20px var(--accent-color);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 400px;
+  padding: 24px !important;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 2rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.setting-item {
+  margin-bottom: 24px;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.setting-item input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-color);
+  margin-bottom: 8px;
+}
+
+.setting-val {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-color);
+  font-size: 0.9rem;
+}
+
+.hidden { display: none !important; }
+
+.slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Tap Interaction Visuals */
+.touch-circle {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--accent-color);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 150;
+  transform: translate(-50%, -50%);
+  animation: ripple 0.8s ease-out forwards;
+}
+
+@keyframes ripple {
+  from { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+  to { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
+
+.tap-indicator-container {
+  position: fixed;
+  width: 100px;
+  height: 100px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tap-progress-ring circle {
+  fill: none;
+  stroke: var(--accent-color);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.tap-completion {
+  position: absolute;
+  color: var(--accent-color);
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.thinking-indicator {
+  position: absolute;
+  display: flex;
+  gap: 4px;
+}
+
+.thinking-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  animation: thinking 1.4s infinite;
+}
+
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes thinking {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes popIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  #ui-overlay {
+    padding: calc(10px + var(--safe-top)) 15px calc(15px + var(--safe-bottom)) 15px;
+  }
+}

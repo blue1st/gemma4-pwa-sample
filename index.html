@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Gemma4 On-Device Vision</title>
+    <meta name="description" content="Real-time on-device video analysis with Gemma 4" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  </head>
+  <body class="dark-theme">
+    <div id="app">
+      <!-- Camera Layer -->
+      <div id="camera-container">
+        <video id="main-video" autoplay playsinline muted></video>
+        <div id="tap-surface"></div>
+      </div>
+
+      <!-- UI Overlay -->
+      <div id="ui-overlay">
+        <!-- Dynamic Analysis Result -->
+        <div id="main-analysis" class="glass-panel">
+          <div class="analysis-header">
+            <div class="analysis-header-left">
+              <div class="pulse-dot"></div>
+              <span>Live Scene Analysis</span>
+            </div>
+            <div id="connection-status" class="status-indicator">READY</div>
+          </div>
+          <div id="description-text">
+            Initializing models...
+          </div>
+        </div>
+
+        <div id="bubble-container"></div>
+
+        <!-- Progress (Model Downloading) -->
+        <div id="load-progress-container" class="hidden">
+          <div id="load-progress-label" class="progress-label">Downloading AI Models</div>
+          <div class="progress-bar-bg">
+            <div id="load-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls-panel">
+          <button id="switch-camera-btn" class="icon-btn glass-btn" title="Switch Camera">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-switch-camera"><path d="M11 19a4 4 0 0 0-7-2.8V5a2 2 0 0 1 2-2h5V2l3 3-3 3V6H6v8.2A4 4 0 0 0 11 19Z"/><path d="M13 5a4 4 0 0 0 7 2.8V19a2 2 0 0 1-2 2h-5v1l-3-3 3-3v2h5V9.8A4 4 0 0 0 13 5Z"/></svg>
+          </button>
+          
+          <select id="model-selector" class="glass-select">
+            <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B (Fast)</option>
+            <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B (Smart)</option>
+          </select>
+
+          <button id="settings-btn" class="icon-btn glass-btn" title="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2.14l.13 1.1a1 1 0 0 1-.69 1.07l-1.07.4a1 1 0 0 1-1.25-.4l-.65-1A2 2 0 0 0 3.86 5l-.54.67a2 2 0 0 0 .54 2.87l.86.63a1 1 0 0 1 .4 1.25l-.4 1.07a1 1 0 0 1-1.07.69l-1.1-.13A2 2 0 0 0 0 12v.44a2 2 0 0 0 2.14 2l1.1-.13a1 1 0 0 1 1.07.69l.4 1.07a1 1 0 0 1-.4 1.25l-1 .65a2 2 0 0 0-.31 2.42l.67.54a2 2 0 0 0 2.87-.54l.63-.86a1 1 0 0 1 1.25-.4l1.07.4a1 1 0 0 1 .69 1.07l-.13 1.1a2 2 0 0 0 2 2.14h.44a2 2 0 0 0 2-2.14l-.13-1.1a1 1 0 0 1 .69-1.07l1.07-.4a1 1 0 0 1 1.25.4l.65 1a2 2 0 0 0 2.42.31l.54-.67a2 2 0 0 0-.54-2.87l-.86-.63a1 1 0 0 1-.4-1.25l.4-1.07a1 1 0 0 1 1.07-.69l1.1.13A2 2 0 0 0 24 12.44v-.44a2 2 0 0 0-2.14-2l-1.1.13a1 1 0 0 1-1.07-.69l-.4-1.07a1 1 0 0 1 .4-1.25l1-.65a2 2 0 0 0 .31-2.42l-.67-.54a2 2 0 0 0-2.87.54l-.63.86a1 1 0 0 1-1.25.4l-1.07-.4a1 1 0 0 1-.69-1.07l.13-1.1A2 2 0 0 0 12.22 2Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+
+          <button id="toggle-audio-btn" class="icon-btn glass-btn" title="Toggle Audio Analysis">
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic-off"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/><line x1="9" x2="9" y1="19" y2="22"/><line x1="15" x2="15" y1="19" y2="22"/><line x1="12" x2="12" y1="15" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-content glass-panel">
+        <div class="modal-header">
+          <h3>Analysis Settings</h3>
+          <button id="close-settings-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-item">
+            <label for="video-frame-count">Frame Count (for Video Analysis)</label>
+            <input type="range" id="video-frame-count" min="1" max="10" step="1" value="8">
+            <span id="frame-count-val" class="setting-val">8</span>
+          </div>
+          <div class="setting-item">
+            <label for="analysis-interval">Background Interval (ms)</label>
+            <input type="range" id="analysis-interval" min="1000" max="10000" step="500" value="5000">
+            <span id="interval-val" class="setting-val">5000</span>
+          </div>
+          <div class="setting-item">
+            <label for="response-language">Response Language</label>
+            <select id="response-language" class="glass-select" style="width: 100%; border-radius: 12px; height: 44px;">
+              <option value="auto">Auto (Browser Setting)</option>
+              <option value="Japanese">日本語 (Japanese)</option>
+              <option value="English">English</option>
+              <option value="Chinese">中文 (Chinese)</option>
+              <option value="Spanish">Español (Spanish)</option>
+              <option value="French">Français (French)</option>
+              <option value="German">Deutsch (German)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
