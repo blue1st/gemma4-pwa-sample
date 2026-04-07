@@ -172,9 +172,15 @@ function initWorker() {
         break
       case 'loaded':
         isModelLoading = false
-        loadProgressContainer.classList.add('hidden')
-        updateStatus('Model Loaded')
-        startBackgroundAnalysis()
+        // Fill to 100% and show ready message for visual closure
+        loadProgressBar.style.width = '100%'
+        loadProgressLabel.textContent = 'AI Ready!'
+        
+        setTimeout(() => {
+          loadProgressContainer.classList.add('hidden')
+          updateStatus('Model Loaded')
+          startBackgroundAnalysis()
+        }, 600)
         break
       case 'generated':
         isAnalyzing = false
@@ -234,6 +240,9 @@ function loadModel() {
 function updateLoadingProgress(payload: any) {
   loadProgressContainer.classList.remove('hidden')
   
+  let allFilesDone = true
+  let fileCount = 0
+
   if (payload.status === 'progress' || payload.status === 'done') {
     if (payload.file) {
       loadingFiles[payload.file] = { 
@@ -246,28 +255,44 @@ function updateLoadingProgress(payload: any) {
     let totalExpected = 0
     
     for (const f in loadingFiles) {
+      fileCount++
       totalLoaded += loadingFiles[f].loaded
       totalExpected += loadingFiles[f].total
+      if (loadingFiles[f].loaded < loadingFiles[f].total) {
+        allFilesDone = false
+      }
     }
     
     if (totalExpected > 0) {
-      const actualProgress = (totalLoaded / totalExpected) * 100
+      // Scale download progress to 0-90%
+      const actualProgress = (totalLoaded / totalExpected) * 90
       lastDisplayedProgress = Math.max(lastDisplayedProgress, actualProgress)
     }
+  }
+
+  // If all files are downloaded, move to 95% and show initialization message
+  if (fileCount > 0 && allFilesDone) {
+    lastDisplayedProgress = Math.max(lastDisplayedProgress, 95)
   }
 
   const rounded = Math.round(lastDisplayedProgress)
   loadProgressBar.style.width = `${lastDisplayedProgress}%`
   
-  let label = `Loading Model... ${rounded}%`
-  if (payload.file) {
-    const filePath = payload.file
-    const fileName = filePath.substring(filePath.lastIndexOf('/') + 1)
-    if (fileName) label += ` (${fileName})`
+  let label = `Downloading AI... ${rounded}%`
+  
+  if (lastDisplayedProgress >= 90) {
+    label = `Optimizing AI Model... ${rounded}%`
+  } else if (payload.file) {
+    const fileName = payload.file.split('/').at(-1)
+    if (fileName) {
+      label = `Downloading AI... ${rounded}% (${fileName})`
+    }
+  } else if (payload.status === 'init') {
+    label = 'Initializing WebGPU...'
   } else if (payload.status) {
-    // Show status if no file name (e.g. "init", "downloading")
     label = `Loading Model... ${payload.status}`
   }
+  
   loadProgressLabel.textContent = label
 }
 
@@ -299,8 +324,8 @@ function captureSingleFrameBitmap(options?: {
   if (options?.maxSize) {
     const ratio = Math.min(options.maxSize / targetW, options.maxSize / targetH)
     if (ratio < 1) {
-      targetW = Math.round(targetW * ratio)
-      targetH = Math.round(targetH * ratio)
+      targetW = Math.max(1, Math.round(targetW * ratio))
+      targetH = Math.max(1, Math.round(targetH * ratio))
     }
   }
   
@@ -630,7 +655,7 @@ function createTapIndicator(x: number, y: number) {
 }
 
 async function performTapAnalysis(clickX: number, clickY: number, containerW: number, containerH: number, screenX: number, screenY: number) {
-  if (!worker || isModelLoading) return
+  if (!worker || isModelLoading || containerW <= 0 || containerH <= 0) return
 
   // Prevent background analysis from interfering
   isAnalyzing = true
@@ -663,8 +688,8 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
     return
   }
   
-  tapCanvas.width = vCropW
-  tapCanvas.height = vCropH
+  tapCanvas.width = Math.max(1, vCropW)
+  tapCanvas.height = Math.max(1, vCropH)
   
   const burstCount = 5
   const interval = 300

@@ -43,16 +43,27 @@ self.onmessage = async (e: MessageEvent) => {
       
       // Handle both ImageBitmap (new) and dataUrls (fallback)
       if (inputImages && inputImages.length > 0) {
-        images = await Promise.all(inputImages.map(async (img: ImageBitmap) => {
-          const canvas = new OffscreenCanvas(img.width, img.height);
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0);
-          const imageData = ctx?.getImageData(0, 0, img.width, img.height);
-          img.close(); // Important: Close bitmap in worker as well
-          if (!imageData) throw new Error('Failed to get image data');
-          // @ts-ignore
-          return new RawImage(imageData.data, img.width, img.height, 4);
+        const processed = await Promise.all(inputImages.map(async (img: ImageBitmap) => {
+          if (!img || img.width <= 0 || img.height <= 0) {
+            img?.close?.();
+            return null;
+          }
+          try {
+            const canvas = new OffscreenCanvas(img.width, img.height);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Worker failed to get 2d context');
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, img.width, img.height);
+            img.close(); // Important: Close bitmap in worker as well
+            // @ts-ignore
+            return new RawImage(imageData.data, img.width, img.height, 4);
+          } catch (e) {
+            console.warn('Worker: skipping invalid frame', e);
+            img.close();
+            return null;
+          }
         }));
+        images = processed.filter(img => img !== null);
       } else if (dataUrls) {
         images = await Promise.all(dataUrls.map((url: string) => RawImage.fromURL(url)))
       }
