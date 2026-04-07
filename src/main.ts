@@ -1,8 +1,7 @@
 import './style.css'
 import { registerSW } from 'virtual:pwa-register'
 
-// Register PWA service worker
-registerSW({ immediate: true })
+// PWA Register (will be called in window.onload)
 
 // State management
 let facingMode: 'user' | 'environment' = 'environment'
@@ -10,6 +9,7 @@ let currentStream: MediaStream | null = null
 let worker: Worker | null = null
 let isModelLoading = false
 let isAnalyzing = false
+let isCameraInitializing = false
 let includeAudio = false
 let backgroundAnalysisId: number | null = null
 let captureIntervalId: number | null = null
@@ -24,6 +24,7 @@ let audioWriteIdx = 0
 let samplingRate = 16000
 let lastDisplayedProgress = 0
 let loadingFiles: Record<string, { loaded: number, total: number }> = {}
+let isInitialized = false
 
 // DOM Elements
 const video = document.getElementById('main-video') as HTMLVideoElement
@@ -55,6 +56,9 @@ const tapCanvas = document.createElement('canvas')
 
 // Initialize Camera
 async function initCamera() {
+  if (isCameraInitializing) return
+  isCameraInitializing = true
+  
   if (currentStream) {
     currentStream.getTracks().forEach(track => track.stop())
   }
@@ -68,18 +72,31 @@ async function initCamera() {
       audio: false
     })
     video.srcObject = currentStream
-    video.onloadedmetadata = () => {
-      video.play()
-      updateStatus('Camera Active')
-    }
+    return new Promise<void>((resolve) => {
+      video.onloadedmetadata = () => {
+        video.play()
+        updateStatus('Camera Active')
+        isCameraInitializing = false
+        resolve()
+      }
+      video.onerror = () => {
+        updateStatus('Camera Error')
+        isCameraInitializing = false
+        resolve()
+      }
+    })
   } catch (err) {
     console.error('Camera Error:', err)
     updateStatus('Camera Error')
+    isCameraInitializing = false
   }
 }
 
 // Update Status Text
 function updateStatus(text: string) {
+  // If model is loading, ignore generic camera messages to avoid overrides
+  if (isModelLoading && text === 'Camera Active') return;
+
   connectionStatus.textContent = text
   
   if (text === 'Camera Active' || text === 'Model Loaded' || text === 'READY') {
@@ -167,7 +184,7 @@ function loadModel() {
   lastDisplayedProgress = 0
   loadingFiles = {}
   const modelId = modelSelector.value
-  updateStatus('Loading...')
+  updateStatus('Loading AI...')
   initWorker()
   worker?.postMessage({ type: 'load', payload: { modelId } })
 }
@@ -430,6 +447,33 @@ function setLanguageFromBrowser() {
   else targetLanguage = 'English'
 }
 
+function autoAdjustPerformance() {
+  const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent)
+  const cpuCores = navigator.hardwareConcurrency || 4
+  // @ts-ignore
+  const ram = navigator.deviceMemory || 8
+
+  if (isMobile || cpuCores <= 4 || ram <= 4) {
+    videoFrameCount = 4
+    BACKGROUND_ANALYSIS_INTERVAL = 8000
+    console.log('Low performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
+  } else {
+    videoFrameCount = 8
+    BACKGROUND_ANALYSIS_INTERVAL = 5000
+    console.log('High performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
+  }
+  
+  // Sync UI if elements exist
+  if (frameCountInput) {
+    frameCountInput.value = videoFrameCount.toString()
+    frameCountVal.textContent = videoFrameCount.toString()
+  }
+  if (intervalInput) {
+    intervalInput.value = BACKGROUND_ANALYSIS_INTERVAL.toString()
+    intervalVal.textContent = BACKGROUND_ANALYSIS_INTERVAL.toString()
+  }
+}
+
 // Tap Interaction
 tapSurface.onclick = (e) => {
   const rect = tapSurface.getBoundingClientRect()
@@ -628,8 +672,19 @@ function showBubble(text: string, x: number, y: number) {
 }
 
 // Initial Load
-window.onload = () => {
+window.onload = async () => {
+  if (isInitialized) return
+  isInitialized = true
+  
+  autoAdjustPerformance()
   setLanguageFromBrowser()
-  initCamera()
+  
+  // Sequence them to avoid resource peaks on mobile
+  await initCamera()
   loadModel()
+
+  // Register PWA service worker with a slight delay to allow coi-serviceworker to finish resets
+  setTimeout(() => {
+    registerSW({ immediate: true })
+  }, 2000)
 }
