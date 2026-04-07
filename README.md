@@ -3,6 +3,17 @@
 ## Overview
 Based on the `gemma4-sandbox` structure, we have created a Progressive Web App (PWA) that performs real-time video and audio analysis using `Transformers.js` v4 and `Gemma 4` models directly in the browser. This project showcases the capabilities of running advanced Vision-Language Models (VLM) entirely on-device via WebGPU.
 
+## Live Demo
+Check out the live version of this PWA here:
+[**Gemma4 On-Device Vision Demo**](https://blue1st.github.io/gemma4-pwa-sample/)
+
+### Mobile Access
+Scan the QR code below to open the app on your mobile device (requires a browser with WebGPU support).
+
+<p align="center">
+  <img src="./public/qr-code.png" width="250" alt="QR Code">
+</p>
+
 ## Key Features
 - **PWA Integration**: Fully offline-capable (after model download) with service worker and manifest.
 - **Real-time Camera**: Supports front/rear camera switching with a premium full-screen interface.
