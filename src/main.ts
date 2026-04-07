@@ -26,6 +26,8 @@ let samplingRate = 16000
 let lastDisplayedProgress = 0
 let loadingFiles: Record<string, { loaded: number, total: number }> = {}
 let isInitialized = false
+let optimizationTimer: number | null = null
+let optimizationPhase = 0
 
 // DOM Elements
 const video = document.getElementById('main-video') as HTMLVideoElement
@@ -187,6 +189,11 @@ function initWorker() {
         break
       case 'loaded':
         isModelLoading = false
+        if (optimizationTimer) {
+          clearInterval(optimizationTimer)
+          optimizationTimer = null
+        }
+        loadProgressBar.classList.remove('optimizing')
         // Fill to 100% and show ready message for visual closure
         loadProgressBar.style.width = '100%'
         loadProgressLabel.textContent = 'AI Ready!'
@@ -254,6 +261,11 @@ function initWorker() {
         }
         
         loadProgressContainer.classList.add('hidden');
+        if (optimizationTimer) {
+          clearInterval(optimizationTimer)
+          optimizationTimer = null
+        }
+        loadProgressBar.classList.remove('optimizing')
         // Resume background analysis after an error to keep the app alive
         setTimeout(startBackgroundAnalysis, 5000)
         break;
@@ -305,26 +317,50 @@ function updateLoadingProgress(payload: any) {
     }
   }
 
-  // If all files are downloaded, move to 95% and show initialization message
-  if (fileCount > 0 && allFilesDone) {
-    lastDisplayedProgress = Math.max(lastDisplayedProgress, 95)
+  // If all files are downloaded, move to "Optimization" phase (90%+)
+  if (fileCount > 0 && allFilesDone && !optimizationTimer) {
+    lastDisplayedProgress = Math.max(lastDisplayedProgress, 90)
+    loadProgressBar.classList.add('optimizing')
+    
+    // Start a timer to fake progress from 90% to 99% since the worker is silent
+    optimizationPhase = 0
+    optimizationTimer = window.setInterval(() => {
+      if (lastDisplayedProgress < 99) {
+        lastDisplayedProgress += 0.2
+        optimizationPhase = (optimizationPhase + 1) % 4
+        renderProgress()
+      }
+    }, 1000)
   }
 
+  renderProgress(payload)
+}
+
+function renderProgress(payload?: any) {
   const rounded = Math.round(lastDisplayedProgress)
   loadProgressBar.style.width = `${lastDisplayedProgress}%`
   
   let label = `Downloading AI... ${rounded}%`
+  const optimizationLabels = [
+    'Initializing Neural Engine...',
+    'Compiling GPU Shaders...',
+    'Optimizing Weights...',
+    'Waking up GPU...'
+  ]
   
   if (lastDisplayedProgress >= 90) {
-    label = `Optimizing AI Model... ${rounded}%`
-  } else if (payload.file) {
+    label = `${optimizationLabels[optimizationPhase]} ${rounded}%`
+    if (lastDisplayedProgress > 98) {
+       label = "Finalizing AI setup... (Almost there!)"
+    }
+  } else if (payload?.file) {
     const fileName = payload.file.split('/').at(-1)
     if (fileName) {
       label = `Downloading AI... ${rounded}% (${fileName})`
     }
-  } else if (payload.status === 'init') {
+  } else if (payload?.status === 'init') {
     label = 'Initializing WebGPU...'
-  } else if (payload.status) {
+  } else if (payload?.status) {
     label = `Loading Model... ${payload.status}`
   }
   

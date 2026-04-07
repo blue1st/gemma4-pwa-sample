@@ -329,6 +329,17 @@ body, html {
   transition: width 0.3s ease-out;
 }
 
+.progress-bar-fill.optimizing {
+  background: linear-gradient(90deg, var(--accent-color), #fff, var(--accent-color));
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
