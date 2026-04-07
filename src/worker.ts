@@ -43,14 +43,15 @@ self.onmessage = async (e: MessageEvent) => {
       
       // Handle both ImageBitmap (new) and dataUrls (fallback)
       if (inputImages && inputImages.length > 0) {
-        const processed = await Promise.all(inputImages.map(async (img: ImageBitmap) => {
+        const processed = [];
+        for (const img of inputImages) {
           try {
             const w = img.width;
             const h = img.height;
             if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
               console.error('Worker: Invalid ImageBitmap dimensions:', { w, h });
               img.close();
-              return null;
+              continue;
             }
 
             const canvas = new OffscreenCanvas(w, h);
@@ -61,12 +62,10 @@ self.onmessage = async (e: MessageEvent) => {
             const imageData = ctx.getImageData(0, 0, w, h);
             img.close(); 
 
-            // Convert to Uint8Array as some RawImage versions prefer it over Uint8ClampedArray
             const data = new Uint8Array(imageData.data.buffer);
-            
             try {
                // @ts-ignore
-               return new RawImage(data, w, h, 4);
+               processed.push(new RawImage(data, w, h, 4));
             } catch (rawError: any) {
                console.error('Worker: RawImage constructor failed:', { message: rawError.message, w, h });
                throw rawError;
@@ -74,11 +73,10 @@ self.onmessage = async (e: MessageEvent) => {
           } catch (e: any) {
             console.error('Worker: Image processing failed:', e);
             img.close();
-            // Propagate the specific browser error so it can be seen in the UI
             throw e;
           }
-        }));
-        images = processed.filter(img => img !== null);
+        }
+        images = processed;
       } else if (dataUrls) {
         images = await Promise.all(dataUrls.map((url: string) => RawImage.fromURL(url)))
       }

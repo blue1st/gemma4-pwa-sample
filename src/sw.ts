@@ -10,20 +10,26 @@ precacheAndRoute(self.__WB_MANIFEST)
 self.addEventListener('fetch', (event: any) => {
   const fetchEvent = event as FetchEvent
   fetchEvent.respondWith(
-    fetch(fetchEvent.request).then((response) => {
-      if (!response || response.status === 0) return response
-
-      const newHeaders = new Headers(response.headers)
-      newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp')
-      newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin')
-      newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin')
-
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: newHeaders
+    fetch(fetchEvent.request)
+      .then((response) => {
+        if (!response || response.status === 0) return response
+ 
+        const newHeaders = new Headers(response.headers)
+        newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp')
+        newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin')
+        newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin')
+ 
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: newHeaders
+        })
       })
-    })
+      .catch((err) => {
+        console.error('SW Fetch Error:', err, fetchEvent.request.url);
+        // On failure, return the original request naturally
+        return fetch(fetchEvent.request);
+      })
   )
 })
 

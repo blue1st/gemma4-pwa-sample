@@ -16,8 +16,8 @@ let includeAudio = false
 let backgroundAnalysisId: number | null = null
 let captureIntervalId: number | null = null
 let videoFrameCount = 4
-let BACKGROUND_ANALYSIS_INTERVAL = 10000;
-let targetLanguage = 'Japanese'; // Default to Japanese or Browser
+let BACKGROUND_ANALYSIS_INTERVAL = 15000;
+let targetLanguage = 'Japanese'; 
 
 let audioContext: AudioContext | null = null
 let audioBuffer: Float32Array | null = null
@@ -170,6 +170,13 @@ function updateStatus(text: string) {
     connectionStatus.style.color = '#ffcc00' 
     connectionStatus.style.background = 'rgba(255, 204, 0, 0.1)'
     connectionStatus.style.borderColor = 'rgba(255, 204, 0, 0.2)'
+    
+    // Add subtle glow to warn about memory if we just had an error
+    if (text.includes('Memory')) {
+       connectionStatus.style.boxShadow = '0 0 15px rgba(255, 204, 0, 0.4)'
+    } else {
+       connectionStatus.style.boxShadow = 'none'
+    }
   }
 }
 
@@ -659,19 +666,20 @@ function setLanguageFromBrowser() {
 }
 
 function autoAdjustPerformance() {
-  const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   const cpuCores = navigator.hardwareConcurrency || 4
   // @ts-ignore
   const ram = navigator.deviceMemory || 8
 
-  if (isMobile || cpuCores <= 4 || ram <= 4) {
+  // Aggressive defaults for all mobile/tablet and low-spec devices
+  if (isMobile || cpuCores <= 4 || ram <= 8) {
     videoFrameCount = 1
-    BACKGROUND_ANALYSIS_INTERVAL = 20000
+    BACKGROUND_ANALYSIS_INTERVAL = 25000
     if (lowResourceToggle) lowResourceToggle.checked = true
-    console.log('Low performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
+    console.log('Mobile/Tablet optimization active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   } else {
     videoFrameCount = 4
-    BACKGROUND_ANALYSIS_INTERVAL = 10000
+    BACKGROUND_ANALYSIS_INTERVAL = 15000
     if (lowResourceToggle) lowResourceToggle.checked = false
     console.log('High performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   }
