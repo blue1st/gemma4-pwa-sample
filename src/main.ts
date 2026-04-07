@@ -38,6 +38,7 @@ const descriptionText = document.getElementById('description-text') as HTMLParag
 const connectionStatus = document.getElementById('connection-status') as HTMLDivElement
 const modelSelector = document.getElementById('model-selector') as HTMLSelectElement
 const switchCameraBtn = document.getElementById('switch-camera-btn') as HTMLButtonElement
+const toggleAnalysisBtn = document.getElementById('toggle-analysis-btn') as HTMLButtonElement
 const toggleAudioBtn = document.getElementById('toggle-audio-btn') as HTMLButtonElement
 const bubbleContainer = document.getElementById('bubble-container') as HTMLDivElement
 const loadProgressContainer = document.getElementById('load-progress-container') as HTMLDivElement
@@ -188,10 +189,13 @@ function updateStatus(text: string) {
 }
 
 // Visual State Helper
-function updateAnalysisState(state: 'snapping' | 'analyzing' | 'waiting' | 'idle') {
+function updateAnalysisState(state: 'snapping' | 'analyzing' | 'waiting' | 'idle' | 'paused') {
   if (!stateDot || !stateLabel) return
   
-  stateDot.className = 'pulse-dot ' + (state === 'idle' ? '' : state)
+  stateDot.className = 'pulse-dot ' + (state === 'idle' || state === 'paused' ? '' : state)
+  if (state === 'paused') {
+    stateDot.classList.add('waiting') // Gray dot for paused
+  }
   
   switch (state) {
     case 'snapping':
@@ -205,6 +209,10 @@ function updateAnalysisState(state: 'snapping' | 'analyzing' | 'waiting' | 'idle
     case 'waiting':
       stateLabel.textContent = 'Waiting'
       intervalProgressContainer.classList.remove('hidden')
+      break
+    case 'paused':
+      stateLabel.textContent = 'AI Paused'
+      intervalProgressContainer.classList.add('hidden')
       break
     case 'idle':
     default:
@@ -227,6 +235,8 @@ function updateIntervalUI() {
     } else if (isModelLoading) {
       updateAnalysisState('idle')
       stateLabel.textContent = 'Waking up AI...'
+    } else if (!backgroundAnalysisId && isInitialized && !isModelLoading) {
+      updateAnalysisState('paused')
     } else {
       updateAnalysisState('idle')
     }
@@ -643,10 +653,44 @@ function startBackgroundAnalysis() {
   lastAnalysisTime = Date.now()
   backgroundAnalysisId = window.setInterval(performBackgroundAnalysis, BACKGROUND_ANALYSIS_INTERVAL)
   startFrameCapture()
-  updateIntervalUI() // Start the UI loop if not already running (requestAnimationFrame handles double-start mostly)
+  updateIntervalUI() 
+  
+  // Update toggle button UI
+  if (toggleAnalysisBtn) {
+    toggleAnalysisBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>`
+    toggleAnalysisBtn.title = 'Pause AI'
+    toggleAnalysisBtn.classList.remove('active-stopped')
+  }
+}
+
+function stopBackgroundAnalysis() {
+  if (backgroundAnalysisId) {
+    clearInterval(backgroundAnalysisId)
+    backgroundAnalysisId = null
+  }
+  if (captureIntervalId) {
+    clearInterval(captureIntervalId)
+    captureIntervalId = null
+  }
+  updateAnalysisState('paused')
+  
+  // Update toggle button UI
+  if (toggleAnalysisBtn) {
+    toggleAnalysisBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
+    toggleAnalysisBtn.title = 'Resume AI'
+    toggleAnalysisBtn.classList.add('active-stopped')
+  }
 }
 
 // UI Interactions
+toggleAnalysisBtn.onclick = () => {
+  if (backgroundAnalysisId) {
+    stopBackgroundAnalysis()
+  } else {
+    startBackgroundAnalysis()
+  }
+}
+
 switchCameraBtn.onclick = async () => {
   if (isCameraInitializing) return
   
