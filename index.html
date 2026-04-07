@@ -10,6 +10,16 @@
 
   </head>
   <body class="dark-theme">
+    <!-- Landing Overlay -->
+    <div id="landing-overlay" class="modal-overlay">
+      <div class="glass-panel" style="text-align: center; max-width: 340px; padding: 40px !important; pointer-events: auto;">
+        <h2 style="margin-bottom: 20px; font-weight: 700; background: linear-gradient(135deg, #fff 0%, var(--accent-color) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Gemma 4 Vision</h2>
+        <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; margin-bottom: 32px;">Real-time on-device video analysis powered by Gemma 4.</p>
+        <button id="start-btn" class="glass-btn" style="width: 100%; height: 60px; font-size: 1.1rem; font-weight: 700; border-color: var(--accent-color); background: rgba(100, 255, 218, 0.1); cursor: pointer;">Start AI Vision</button>
+        <div id="gpu-error" class="hidden" style="margin-top: 20px; color: #ff4d4d; font-size: 0.8rem; line-height: 1.4;">WebGPU not supported in this browser.</div>
+      </div>
+    </div>
+
     <div id="app">
       <!-- Camera Layer -->
       <div id="camera-container">

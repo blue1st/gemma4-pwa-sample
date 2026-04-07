@@ -54,7 +54,18 @@ const languageSelector = document.getElementById('response-language') as HTMLSel
 const cropCanvas = document.createElement('canvas')
 const tapCanvas = document.createElement('canvas')
 
-// Capture every X ms is now calculated dynamically in startFrameCapture
+// Check WebGPU Support
+async function checkWebGPUSupport() {
+  // @ts-ignore
+  if (!navigator.gpu) return false
+  try {
+    // @ts-ignore
+    const adapter = await navigator.gpu.requestAdapter()
+    return !!adapter
+  } catch (e) {
+    return false
+  }
+}
 
 // Initialize Camera
 async function initCamera() {
@@ -674,46 +685,56 @@ function showBubble(text: string, x: number, y: number) {
 }
 
 // Initial Load
-window.onload = async () => {
+window.onload = () => {
   if (isInitialized) return
   isInitialized = true
 
-  // Loop guard for mobile/pc stabilization
+  const startBtn = document.getElementById('start-btn') as HTMLButtonElement
+  const landingOverlay = document.getElementById('landing-overlay') as HTMLDivElement
+  const gpuError = document.getElementById('gpu-error') as HTMLDivElement
+
+  // Loop guard check
   const now = Date.now()
   const lastLoad = parseInt(sessionStorage.getItem('last_load_time') || '0')
   const loadCount = parseInt(sessionStorage.getItem('load_count') || '0')
   
   if (now - lastLoad < 2000 && loadCount > 3) {
-    console.error('Reload loop detected. Stopping initialization.')
-    updateStatus('Error: Reload Loop')
-    descriptionText.textContent = 'Critical Error: The page is reloading too frequently. Please try clearing your cache or opening in a new tab.'
+    landingOverlay.style.display = 'flex'
+    startBtn.disabled = true
+    gpuError.classList.remove('hidden')
+    gpuError.textContent = 'Reload loop detected. Please clear cache or restart browser.'
     return
   }
   
   sessionStorage.setItem('last_load_time', now.toString())
   sessionStorage.setItem('load_count', (now - lastLoad < 5000 ? loadCount + 1 : 1).toString())
-  
-  autoAdjustPerformance()
-  setLanguageFromBrowser()
-  
-  // Sequence them to avoid resource peaks on mobile
-  await initCamera()
-  loadModel()
 
-  // Only register Service Worker in production/secure environments, not on localhost to avoid HMR loops
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  if (!isLocalhost) {
-    const updateSW = registerSW({
-      onNeedRefresh() {
-        if (confirm('New AI engine update available. Reload now?')) {
-          updateSW()
-        }
-      },
-      onOfflineReady() {
-        console.log('App is ready to work offline.')
-      }
-    })
-  } else {
-    console.log('Localhost detected: Skipping Service Worker registration.')
+  startBtn.onclick = async () => {
+    // Reset loop count on user interaction
+    sessionStorage.setItem('load_count', '0')
+    
+    // Check GPU support first
+    const hasGPU = await checkWebGPUSupport()
+    if (!hasGPU) {
+      gpuError.classList.remove('hidden')
+      return
+    }
+
+    startBtn.disabled = true
+    startBtn.textContent = 'Initializing...'
+
+    autoAdjustPerformance()
+    setLanguageFromBrowser()
+    
+    await initCamera()
+    loadModel()
+
+    landingOverlay.classList.add('hidden')
+    
+    // Register PWA Service Worker (only in production)
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (!isLocalhost) {
+      registerSW({ immediate: false })
+    }
   }
 }
