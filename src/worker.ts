@@ -34,12 +34,28 @@ self.onmessage = async (e: MessageEvent) => {
       self.postMessage({ type: 'error', error: message })
     }
   } else if (type === 'generate') {
+    let images: any[] = []
     try {
       if (!processor || !model) {
         throw new Error('Model or processor not loaded')
       }
-      const { promptText, dataUrls, audioData, samplingRate } = payload
-      const images = await Promise.all(dataUrls.map((url: string) => RawImage.fromURL(url)))
+      const { promptText, images: inputImages, dataUrls, audioData, samplingRate } = payload
+      
+      // Handle both ImageBitmap (new) and dataUrls (fallback)
+      if (inputImages && inputImages.length > 0) {
+        images = await Promise.all(inputImages.map(async (img: ImageBitmap) => {
+          const canvas = new OffscreenCanvas(img.width, img.height);
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          const imageData = ctx?.getImageData(0, 0, img.width, img.height);
+          img.close(); // Important: Close bitmap in worker as well
+          if (!imageData) throw new Error('Failed to get image data');
+          // @ts-ignore
+          return new RawImage(imageData.data, img.width, img.height, 4);
+        }));
+      } else if (dataUrls) {
+        images = await Promise.all(dataUrls.map((url: string) => RawImage.fromURL(url)))
+      }
 
       const content: Array<{ type: string; text?: string }> = []
 
@@ -110,7 +126,7 @@ self.onmessage = async (e: MessageEvent) => {
         model as any
       ).generate({
         ...inputs,
-        max_new_tokens: 512,
+        max_new_tokens: 128, // Reduced for mobile stability
         do_sample: false,
         streamer
       }))
@@ -121,10 +137,17 @@ self.onmessage = async (e: MessageEvent) => {
         { skip_special_tokens: true }
       )
       self.postMessage({ type: 'generated', payload: decoded[0], context: payload.context })
+      
+      // Cleanup tensors if possible
+      if (inputs.input_ids) inputs.input_ids.dispose?.();
+      if (outputs) outputs.dispose?.();
+
     } catch (error: any) {
       console.error(error)
       const message = error.message || String(error)
       self.postMessage({ type: 'error', error: message })
+    } finally {
+      images = []; // Clear references
     }
   }
 }

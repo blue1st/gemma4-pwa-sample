@@ -15,9 +15,8 @@ let isCameraInitializing = false
 let includeAudio = false
 let backgroundAnalysisId: number | null = null
 let captureIntervalId: number | null = null
-let backgroundFrameBuffer: string[] = []
-let videoFrameCount = 8
-let BACKGROUND_ANALYSIS_INTERVAL = 5000;
+let videoFrameCount = 4
+let BACKGROUND_ANALYSIS_INTERVAL = 10000;
 let targetLanguage = 'Japanese'; // Default to Japanese or Browser
 
 let audioContext: AudioContext | null = null
@@ -80,7 +79,8 @@ async function initCamera() {
   }
   
   // Clear buffers to free up memory immediately
-  backgroundFrameBuffer = []
+  bitmapBuffer.forEach(b => b.close())
+  bitmapBuffer = []
   
   if (currentStream) {
     currentStream.getTracks().forEach(track => {
@@ -272,16 +272,16 @@ function updateLoadingProgress(payload: any) {
 }
 
 // Capture frame(s)
-function captureSingleFrame(options?: { 
+function captureSingleFrameBitmap(options?: { 
   crop?: { x: number, y: number, w: number, h: number }, 
   maxSize?: number 
-}): string {
+}): Promise<ImageBitmap | null> {
   const context = cropCanvas.getContext('2d')
-  if (!context) return ''
+  if (!context) return Promise.resolve(null)
 
   const vWidth = video.videoWidth
   const vHeight = video.videoHeight
-  if (!vWidth || !vHeight) return ''
+  if (!vWidth || !vHeight) return Promise.resolve(null)
   
   let sourceX = 0, sourceY = 0, sourceW = vWidth, sourceH = vHeight
   let targetW = vWidth, targetH = vHeight
@@ -313,18 +313,23 @@ function captureSingleFrame(options?: {
     0, 0, targetW, targetH
   )
   
-  return cropCanvas.toDataURL('image/jpeg', 0.8)
+  return createImageBitmap(cropCanvas)
 }
 
-function updateFrameBuffer() {
+
+// Keep a simple backbuffer of ImageBitmaps
+let bitmapBuffer: ImageBitmap[] = []
+
+async function updateFrameBuffer() {
   if (video.readyState < 2 || isCameraInitializing || isModelLoading) return
-  // Use a smaller maxSize for background analysis (640 or 448 for low resource)
-  const maxSize = lowResourceToggle?.checked ? 448 : 640
-  const frame = captureSingleFrame({ maxSize })
-  if (frame) {
-    backgroundFrameBuffer.push(frame)
-    if (backgroundFrameBuffer.length > videoFrameCount) {
-      backgroundFrameBuffer.shift()
+  // Use a smaller maxSize for background analysis (336 or 224 for extreme low resource)
+  const maxSize = lowResourceToggle?.checked ? 336 : 448
+  const bitmap = await captureSingleFrameBitmap({ maxSize })
+  if (bitmap) {
+    bitmapBuffer.push(bitmap)
+    if (bitmapBuffer.length > videoFrameCount) {
+      const old = bitmapBuffer.shift()
+      old?.close() // Close to free memory
     }
   }
 }
@@ -336,12 +341,13 @@ function startFrameCapture() {
   captureIntervalId = window.setInterval(updateFrameBuffer, captureRate)
 }
 
-function captureFrames(): string[] {
-  if (backgroundFrameBuffer.length > 0) {
-    return [...backgroundFrameBuffer]
+async function captureFrames(): Promise<ImageBitmap[]> {
+  if (bitmapBuffer.length > 0) {
+    // Return copies so we don't close them prematurely
+    return Promise.all(bitmapBuffer.map(b => createImageBitmap(b)))
   }
-  const frame = captureSingleFrame()
-  return frame ? [frame] : []
+  const bitmap = await captureSingleFrameBitmap()
+  return bitmap ? [bitmap] : []
 }
 
 let volumeLoopId: number | null = null
@@ -425,7 +431,7 @@ async function performBackgroundAnalysis() {
   if (!worker || isAnalyzing || isModelLoading || isCameraInitializing) return
   isAnalyzing = true
   
-  const frames = captureFrames()
+  const frames = await captureFrames()
   if (frames.length === 0) {
     isAnalyzing = false
     return
@@ -437,11 +443,11 @@ async function performBackgroundAnalysis() {
     type: 'generate',
     payload: {
       promptText: `Describe the visible entities (people, objects, environment) concisely. Skip any introductory phrases. Return only the description in ${targetLanguage}.`,
-      dataUrls: frames,
+      images: frames,
       audioData: audio,
       samplingRate
     }
-  })
+  }, frames) // Transfer ImageBitmaps
 }
 
 function startBackgroundAnalysis() {
@@ -492,7 +498,8 @@ settingsModal.onclick = (e) => {
 frameCountInput.oninput = () => {
   videoFrameCount = parseInt(frameCountInput.value)
   frameCountVal.textContent = videoFrameCount.toString()
-  backgroundFrameBuffer = [] // Clear buffer
+  bitmapBuffer.forEach(b => b.close())
+  bitmapBuffer = [] // Clear buffer
 }
 
 intervalInput.oninput = () => {
@@ -515,8 +522,8 @@ languageSelector.onchange = () => {
 
 lowResourceToggle.onchange = () => {
   if (lowResourceToggle.checked) {
-    videoFrameCount = 2
-    BACKGROUND_ANALYSIS_INTERVAL = 15000
+    videoFrameCount = 1
+    BACKGROUND_ANALYSIS_INTERVAL = 20000
     console.log('Resource Saver Enabled')
   } else {
     autoAdjustPerformance() // Reset to detected defaults
@@ -551,13 +558,13 @@ function autoAdjustPerformance() {
   const ram = navigator.deviceMemory || 8
 
   if (isMobile || cpuCores <= 4 || ram <= 4) {
-    videoFrameCount = 4
-    BACKGROUND_ANALYSIS_INTERVAL = 10000
+    videoFrameCount = 2
+    BACKGROUND_ANALYSIS_INTERVAL = 15000
     if (lowResourceToggle) lowResourceToggle.checked = true
     console.log('Low performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   } else {
-    videoFrameCount = 8
-    BACKGROUND_ANALYSIS_INTERVAL = 5000
+    videoFrameCount = 4
+    BACKGROUND_ANALYSIS_INTERVAL = 10000
     if (lowResourceToggle) lowResourceToggle.checked = false
     console.log('High performance mode active:', { videoFrameCount, BACKGROUND_ANALYSIS_INTERVAL })
   }
@@ -649,7 +656,7 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
   const vCropW = cropSize * scaleX
   const vCropH = cropSize * scaleY
 
-  const frames: string[] = []
+  const frames: ImageBitmap[] = []
   const context = tapCanvas.getContext('2d')
   if (!context) {
     isAnalyzing = false
@@ -671,9 +678,11 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
       const progress = (i + 1) / burstCount
       indicator.circle.style.strokeDashoffset = `${indicator.circumference * (1 - progress)}`
       
-      context.drawImage(video, vCropX, vCropY, vCropW, vCropH, 0, 0, vCropW, vCropH)
-      // Tap analysis can use higher resolution or specific size
-      frames.push(tapCanvas.toDataURL('image/jpeg', 0.8))
+      const bitmap = await captureSingleFrameBitmap({
+        crop: { x: vCropX, y: vCropY, w: vCropW, h: vCropH },
+        maxSize: 448
+      })
+      if (bitmap) frames.push(bitmap)
       
       await new Promise(r => setTimeout(r, interval))
     }
@@ -708,12 +717,12 @@ async function performTapAnalysis(clickX: number, clickY: number, containerW: nu
     type: 'generate',
     payload: {
       promptText: `Identify the object or feature at the specified position. Return only the brief description in ${targetLanguage} without any preamble.`,
-      dataUrls: frames,
+      images: frames,
       audioData: await getAudioData(),
       samplingRate,
       context: { type: 'tap', x: screenX, y: screenY }
     }
-  })
+  }, frames) // Transfer ImageBitmaps
 }
 
 // Result of Tap Analysis is handled by common onmessage in initWorker()
