@@ -686,5 +686,15 @@ window.onload = async () => {
   loadModel()
 
   // Re-enable PWA registration with our combined Service Worker
-  registerSW({ immediate: true })
+  // Removed 'immediate: true' to prevent automatic reloads that disrupt model initialization
+  const updateSW = registerSW({
+    onNeedRefresh() {
+      if (confirm('New AI engine update available. Reload now?')) {
+        updateSW()
+      }
+    },
+    onOfflineReady() {
+      console.log('App is ready to work offline.')
+    }
+  })
 }

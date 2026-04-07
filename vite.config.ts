@@ -8,7 +8,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Changed from 'autoUpdate' to prevent silent reloads
       includeAssets: ['favicon.svg', 'logo.svg'],
       manifest: {
         name: 'Gemma4 On-Device Vision',
