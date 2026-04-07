@@ -134,39 +134,53 @@ self.onmessage = async (e: MessageEvent) => {
         }
       }
 
-      const inputs = await (
-        processor as any
-      )(prompt, images, audioData, {
-        sampling_rate: samplingRate
-      })
+      let inputs: any = null;
+      let outputs: any = null;
+      try {
+        inputs = await (
+          processor as any
+        )(prompt, images, audioData, {
+          sampling_rate: samplingRate
+        })
 
-      const streamer = new TextStreamer(processor.tokenizer, {
-        skip_prompt: true,
-        skip_special_tokens: true,
-        callback_function: (text: string) => {
-          self.postMessage({ type: 'chunk', payload: text })
+        const streamer = new TextStreamer(processor.tokenizer, {
+          skip_prompt: true,
+          skip_special_tokens: true,
+          callback_function: (text: string) => {
+            self.postMessage({ type: 'chunk', payload: text })
+          }
+        })
+
+        outputs = (await (
+          model as any
+        ).generate({
+          ...inputs,
+          max_new_tokens: 64, // Further reduced for mobile stability
+          do_sample: false,
+          streamer
+        }))
+
+        const decoded = processor.batch_decode(
+          // @ts-ignore
+          outputs.slice(null, [inputs.input_ids.dims.at(-1), null]),
+          { skip_special_tokens: true }
+        )
+        self.postMessage({ type: 'generated', payload: decoded[0], context: payload.context })
+      } finally {
+        // Essential: Always cleanup tensors to prevent OOM/GPU crashes on subsequent runs
+        if (inputs) {
+          Object.values(inputs).forEach((tensor: any) => {
+            if (tensor && typeof tensor.dispose === 'function') {
+              tensor.dispose();
+            }
+          });
         }
-      })
-
-      const outputs = (await (
-        model as any
-      ).generate({
-        ...inputs,
-        max_new_tokens: 128, // Reduced for mobile stability
-        do_sample: false,
-        streamer
-      }))
-
-      const decoded = processor.batch_decode(
-        // @ts-ignore
-        outputs.slice(null, [inputs.input_ids.dims.at(-1), null]),
-        { skip_special_tokens: true }
-      )
-      self.postMessage({ type: 'generated', payload: decoded[0], context: payload.context })
-      
-      // Cleanup tensors if possible
-      if (inputs.input_ids) inputs.input_ids.dispose?.();
-      if (outputs) outputs.dispose?.();
+        if (outputs && typeof outputs.dispose === 'function') {
+          if (typeof outputs.dispose === 'function') {
+            outputs.dispose();
+          }
+        }
+      }
 
     } catch (error: any) {
       console.error(error)

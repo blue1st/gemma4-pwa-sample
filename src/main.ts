@@ -223,6 +223,16 @@ function initWorker() {
               2. Accept terms on the <a href="https://huggingface.co/${modelId}" target="_blank" style="color: var(--accent-color); font-weight: bold;">Model Page</a> <br>
             </div>
           `;
+        } else if (error && (error.includes('OrtRun') || error.includes('out of memory'))) {
+          updateStatus('Memory Error');
+          descriptionText.innerHTML = `
+            <div style="color: #ffbaba; margin-bottom: 8px;">Memory limit reached.</div>
+            <div style="font-size: 0.85rem; line-height: 1.4;">
+              Mobile GPU memory is exhausted. Try: <br>
+              • Switching to <b>Gemma 4 E2B (Fast)</b> model <br>
+              • Enabling <b>Resource Saver</b> in Settings
+            </div>
+          `;
         } else {
           updateStatus('Error');
           descriptionText.textContent = `Error: ${error || 'Unknown error'}`;
