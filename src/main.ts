@@ -22,6 +22,8 @@ let audioContext: AudioContext | null = null
 let audioBuffer: Float32Array | null = null
 let audioWriteIdx = 0
 let samplingRate = 16000
+let lastDisplayedProgress = 0
+let loadingFiles: Record<string, { loaded: number, total: number }> = {}
 
 // DOM Elements
 const video = document.getElementById('main-video') as HTMLVideoElement
@@ -107,11 +109,7 @@ function initWorker() {
         updateStatus(payload)
         break
       case 'progress':
-        if (payload.status === 'progress') {
-           loadProgressContainer.classList.remove('hidden')
-           loadProgressBar.style.width = `${payload.progress}%`
-           loadProgressLabel.textContent = `Loading Model... ${Math.round(payload.progress)}%`
-        }
+        updateLoadingProgress(payload)
         break
       case 'loaded':
         isModelLoading = false
@@ -166,10 +164,52 @@ function initWorker() {
 function loadModel() {
   if (isModelLoading) return
   isModelLoading = true
+  lastDisplayedProgress = 0
+  loadingFiles = {}
   const modelId = modelSelector.value
   updateStatus('Loading...')
   initWorker()
   worker?.postMessage({ type: 'load', payload: { modelId } })
+}
+
+function updateLoadingProgress(payload: any) {
+  loadProgressContainer.classList.remove('hidden')
+  
+  if (payload.status === 'progress' || payload.status === 'done') {
+    if (payload.file) {
+      loadingFiles[payload.file] = { 
+        loaded: payload.loaded || (payload.status === 'done' ? (loadingFiles[payload.file]?.total || 100) : 0), 
+        total: payload.total || (loadingFiles[payload.file]?.total || 100) 
+      }
+    }
+    
+    let totalLoaded = 0
+    let totalExpected = 0
+    
+    for (const f in loadingFiles) {
+      totalLoaded += loadingFiles[f].loaded
+      totalExpected += loadingFiles[f].total
+    }
+    
+    if (totalExpected > 0) {
+      const actualProgress = (totalLoaded / totalExpected) * 100
+      lastDisplayedProgress = Math.max(lastDisplayedProgress, actualProgress)
+    }
+  }
+
+  const rounded = Math.round(lastDisplayedProgress)
+  loadProgressBar.style.width = `${lastDisplayedProgress}%`
+  
+  let label = `Loading Model... ${rounded}%`
+  if (payload.file) {
+    const filePath = payload.file
+    const fileName = filePath.substring(filePath.lastIndexOf('/') + 1)
+    if (fileName) label += ` (${fileName})`
+  } else if (payload.status) {
+    // Show status if no file name (e.g. "init", "downloading")
+    label = `Loading Model... ${payload.status}`
+  }
+  loadProgressLabel.textContent = label
 }
 
 // Capture frame(s)

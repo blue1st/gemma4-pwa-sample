@@ -270,6 +270,7 @@ body, html {
   height: 100%;
   background: var(--accent-color);
   box-shadow: 0 0 20px var(--accent-color);
+  transition: width 0.3s ease-out;
 }
 
 /* Modal Styles */
