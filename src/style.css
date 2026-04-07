@@ -192,36 +192,40 @@ body, html {
 }
 
 #controls-panel > button {
-  flex: 0 0 54px; /* Fix buttons to square size */
+  flex: 0 0 auto; /* Stop any flex-based resizing */
 }
 
 #model-selector {
-  flex: 1; /* Occupy remaining space */
-  min-width: 0; /* Allow it to shrink if needed */
+  flex: 1;
+  min-width: 0;
 }
 
 .glass-btn {
   width: 54px;
   height: 54px;
+  aspect-ratio: 1 / 1; /* Force square ratio */
   border-radius: 18px;
   background: var(--panel-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid; /* Grid is more stable for centering icons */
+  place-items: center;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0; /* Ensure no padding interferes with icon size */
+  padding: 0;
+  flex-shrink: 0; /* Never shrink */
 }
 
 .glass-btn svg {
-  flex-shrink: 0;
   width: 24px;
   height: 24px;
-  display: block; /* Prevent inline spacing issues */
+  max-width: 24px;
+  max-height: 24px;
+  display: block;
+  fill: none;
+  aspect-ratio: 1 / 1; /* Explicitly force SVG aspect ratio */
 }
 
 .glass-btn:active {
