@@ -179,15 +179,23 @@ function initWorker() {
         setTimeout(() => {
           loadProgressContainer.classList.add('hidden')
           updateStatus('Model Loaded')
-          startBackgroundAnalysis()
+          // resume background work if not already doing something
+          if (!isAnalyzing) {
+            startBackgroundAnalysis()
+          }
         }, 600)
         break
       case 'generated':
         isAnalyzing = false
         if (e.data.context && e.data.context.type === 'tap') {
           showBubble(payload, e.data.context.x, e.data.context.y)
+          // Resume background activity after a short delay following user interaction
+          setTimeout(startBackgroundAnalysis, 2000)
         } else {
           descriptionText.textContent = payload
+          // Periodic analysis resumes automatically if backgroundAnalysisId is still active,
+          // but we might have stopped it during tap. Regular cases don't need restart here logic-wise
+          // but if we stopped it during tap, it will be restarted by the tap branch above.
         }
         break
       case 'bubble-generated':
@@ -221,6 +229,8 @@ function initWorker() {
         }
         
         loadProgressContainer.classList.add('hidden');
+        // Resume background analysis after an error to keep the app alive
+        setTimeout(startBackgroundAnalysis, 5000)
         break;
     }
   }
@@ -668,14 +678,26 @@ function createTapIndicator(x: number, y: number) {
 async function performTapAnalysis(clickX: number, clickY: number, containerW: number, containerH: number, screenX: number, screenY: number) {
   if (!worker || isModelLoading || containerW <= 0 || containerH <= 0) return
 
-  // Prevent background analysis from interfering
+  // 1. Stop background activity to prioritize tap analysis
   isAnalyzing = true
-
-  // Cancel any existing capture
+  if (backgroundAnalysisId) {
+    clearInterval(backgroundAnalysisId)
+    backgroundAnalysisId = null
+  }
+  if (captureIntervalId) {
+    clearInterval(captureIntervalId)
+    captureIntervalId = null
+  }
+  
+  // Cancel any existing tap UI
   if (tapIndicator) {
     tapIndicator.container.remove()
     isCapturingTap = false
   }
+
+  // 2. Clear buffer to free up memory immediately
+  bitmapBuffer.forEach(b => b.close())
+  bitmapBuffer = []
 
   const indicator = createTapIndicator(screenX, screenY)
   tapIndicator = indicator
