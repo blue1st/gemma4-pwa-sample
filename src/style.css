@@ -172,6 +172,29 @@ body, html {
   background: rgba(255,255,255,0.1);
 }
 
+.icon-sub-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.icon-sub-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.icon-sub-btn:active {
+  transform: scale(0.9);
+}
+
 #switch-camera-btn {
   border-color: rgba(100, 255, 218, 0.4);
 }
@@ -244,6 +267,25 @@ body, html {
 }
 
 .bubble-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.bubble-copy-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-right: auto; /* Push push push */
+}
+
+.bubble-copy-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }

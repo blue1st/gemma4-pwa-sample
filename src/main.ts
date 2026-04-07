@@ -134,6 +134,21 @@ async function initCamera() {
   }
 }
 
+// Clipboard Helper
+async function copyToClipboard(text: string, btn: HTMLElement) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const originalHtml = btn.innerHTML;
+    // Show checkmark
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64ffda" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><polyline points="20 6 9 17 4 12"/></svg>`;
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+}
+
 // Update Status Text
 function updateStatus(text: string) {
   // If model is loading, ignore generic camera messages to avoid overrides
@@ -822,12 +837,22 @@ function showBubble(text: string, x: number, y: number) {
   // Stop click propagation to tapSurface
   bubble.onclick = (e) => e.stopPropagation()
   
-  // Header with Close Button
+  // Header with Close & Copy Button
   const header = document.createElement('div')
   header.style.display = 'flex'
-  header.style.justifyContent = 'flex-end'
-  header.style.marginBottom = '4px'
+  header.style.alignItems = 'center'
+  header.style.justifyContent = 'space-between'
+  header.style.marginBottom = '8px'
   
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'bubble-copy-btn'
+  copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+  copyBtn.onclick = (e) => {
+    e.stopPropagation()
+    copyToClipboard(text, copyBtn)
+  }
+  header.appendChild(copyBtn)
+
   const closeBtn = document.createElement('button')
   closeBtn.className = 'bubble-close-btn'
   closeBtn.innerHTML = '&times;'
@@ -900,5 +925,11 @@ window.onload = () => {
     if (!isLocalhost) {
       registerSW({ immediate: false })
     }
+  }
+
+  // Copy Main Result
+  const copyMainBtn = document.getElementById('copy-main-btn') as HTMLButtonElement
+  copyMainBtn.onclick = () => {
+    copyToClipboard(descriptionText.textContent || '', copyMainBtn)
   }
 }
